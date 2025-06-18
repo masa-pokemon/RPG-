@@ -2,38 +2,41 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>RPGツクール</title>
+  <title>マップエディタ（画像分離版）</title>
   <style>
     body {
       font-family: sans-serif;
       margin: 20px;
     }
 
-    #tileSelector, #playerSection {
-      margin: 10px 0;
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      border: 1px solid #ccc;
-      padding: 10px;
+    h2 {
+      margin-top: 30px;
     }
 
-    #tileSelector img, #playerPreview img {
+    #tileSelector, #playerSelector {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 10px;
+      border: 1px solid #ccc;
+      margin: 10px 0;
+    }
+
+    #tileSelector img, #playerSelector img {
       width: 40px;
       height: 40px;
       cursor: pointer;
       border: 2px solid transparent;
     }
 
-    #tileSelector img.selected, #playerPreview img.selected {
+    img.selected {
       border-color: red;
     }
 
     #map {
       display: grid;
-      grid-template-columns: repeat(10, 40px);
-      grid-template-rows: repeat(10, 40px);
       gap: 1px;
+      margin-top: 10px;
     }
 
     .cell {
@@ -63,75 +66,103 @@
   </style>
 </head>
 <body>
-  <h1>マップエディタ</h1>
+  <h1>マップエディタ（プレイヤー・タイル分離）</h1>
 
-  <label>マス画像アップロード：</label>
-  <input type="file" id="imageUploader" accept="image/*" multiple><br>
+  <div>
+    <label>列（横）: <input type="number" id="cols" value="10" min="1"></label>
+    <label>行（縦）: <input type="number" id="rows" value="10" min="1"></label>
+    <button id="generateMap">マップ生成</button>
+  </div>
 
+  <h2>🧱 マップタイルアップロード</h2>
+  <input type="file" id="tileUploader" accept="image/*" multiple>
   <div id="tileSelector"></div>
 
-  <label>プレイヤー画像アップロード：</label>
-  <input type="file" id="playerUploader" accept="image/*"><br>
-  <div id="playerPreview"></div>
+  <h2>🧍 プレイヤー画像アップロード</h2>
+  <input type="file" id="playerUploader" accept="image/*">
+  <div id="playerSelector"></div>
 
   <p><strong>使い方：</strong><br>
-    ・左クリック：マスを配置<br>
-    ・右クリック：移動不可マス（ブロック）切替<br>
-    ・プレイヤー画像を選んだ後にセルをクリック：プレイヤー初期位置を設定
+    ・マス画像をクリックして選択し、マップ上にクリックで配置。<br>
+    ・プレイヤー画像を選んだ状態でマップをクリック：プレイヤー設置。<br>
+    ・右クリック：移動不可マス（ブロック）切り替え。
   </p>
 
   <div id="map"></div>
 
   <script>
-    const tileSelector = document.getElementById('tileSelector');
-    const imageUploader = document.getElementById('imageUploader');
     const map = document.getElementById('map');
+    const tileUploader = document.getElementById('tileUploader');
+    const tileSelector = document.getElementById('tileSelector');
     const playerUploader = document.getElementById('playerUploader');
-    const playerPreview = document.getElementById('playerPreview');
+    const playerSelector = document.getElementById('playerSelector');
+    const generateMapBtn = document.getElementById('generateMap');
 
     let selectedTile = null;
     let selectedPlayerImg = null;
     let playerPosition = null;
+    let cells = [];
 
-    // マップ初期化
-    const cells = [];
-    for (let i = 0; i < 100; i++) {
-      const cell = document.createElement('div');
-      cell.classList.add('cell');
-      cell.dataset.index = i;
-
-      cell.addEventListener('click', (e) => {
-        e.preventDefault();
-
-        if (selectedPlayerImg) {
-          // プレイヤー配置
-          removeExistingPlayer();
-          const img = document.createElement('img');
-          img.src = selectedPlayerImg.src;
-          img.classList.add('player');
-          cell.appendChild(img);
-          playerPosition = cell;
-        } else if (selectedTile) {
-          // マスタイル配置
-          cell.style.backgroundImage = `url(${selectedTile.src})`;
-          cell.style.backgroundSize = 'cover';
-        }
-      });
-
-      // 右クリックで行動制限切り替え
-      cell.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
-        cell.classList.toggle('blocked');
-      });
-
-      map.appendChild(cell);
-      cells.push(cell);
+    function clearSelection(container) {
+      container.querySelectorAll('img').forEach(img => img.classList.remove('selected'));
     }
 
-    // マス画像アップロード
-    imageUploader.addEventListener('change', (e) => {
-      const files = Array.from(e.target.files);
-      files.forEach(file => {
+    function removeExistingPlayer() {
+      cells.forEach(cell => {
+        const player = cell.querySelector('.player');
+        if (player) cell.removeChild(player);
+      });
+    }
+
+    function createMap(cols, rows) {
+      map.innerHTML = '';
+      map.style.gridTemplateColumns = `repeat(${cols}, 40px)`;
+      map.style.gridTemplateRows = `repeat(${rows}, 40px)`;
+
+      cells = [];
+      for (let i = 0; i < cols * rows; i++) {
+        const cell = document.createElement('div');
+        cell.classList.add('cell');
+        cell.dataset.index = i;
+
+        cell.addEventListener('click', (e) => {
+          e.preventDefault();
+          if (selectedPlayerImg) {
+            removeExistingPlayer();
+            const img = document.createElement('img');
+            img.src = selectedPlayerImg.src;
+            img.classList.add('player');
+            cell.appendChild(img);
+            playerPosition = cell;
+          } else if (selectedTile) {
+            cell.style.backgroundImage = `url(${selectedTile.src})`;
+            cell.style.backgroundSize = 'cover';
+          }
+        });
+
+        cell.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          cell.classList.toggle('blocked');
+        });
+
+        map.appendChild(cell);
+        cells.push(cell);
+      }
+    }
+
+    generateMapBtn.addEventListener('click', () => {
+      const cols = parseInt(document.getElementById('cols').value);
+      const rows = parseInt(document.getElementById('rows').value);
+      if (cols > 0 && rows > 0) {
+        createMap(cols, rows);
+      }
+    });
+
+    // 初期マップ生成
+    createMap(10, 10);
+
+    tileUploader.addEventListener('change', (e) => {
+      Array.from(e.target.files).forEach(file => {
         const reader = new FileReader();
         reader.onload = () => {
           const img = document.createElement('img');
@@ -139,8 +170,8 @@
           img.addEventListener('click', () => {
             selectedTile = img;
             selectedPlayerImg = null;
-            clearSelection('#tileSelector img');
-            clearSelection('#playerPreview img');
+            clearSelection(tileSelector);
+            clearSelection(playerSelector);
             img.classList.add('selected');
           });
           tileSelector.appendChild(img);
@@ -149,7 +180,6 @@
       });
     });
 
-    // プレイヤー画像アップロード
     playerUploader.addEventListener('change', (e) => {
       const file = e.target.files[0];
       if (!file) return;
@@ -160,26 +190,15 @@
         img.addEventListener('click', () => {
           selectedPlayerImg = img;
           selectedTile = null;
-          clearSelection('#tileSelector img');
-          clearSelection('#playerPreview img');
+          clearSelection(tileSelector);
+          clearSelection(playerSelector);
           img.classList.add('selected');
         });
-        playerPreview.innerHTML = '';
-        playerPreview.appendChild(img);
+        playerSelector.innerHTML = '';
+        playerSelector.appendChild(img);
       };
       reader.readAsDataURL(file);
     });
-
-    function clearSelection(selector) {
-      document.querySelectorAll(selector).forEach(img => img.classList.remove('selected'));
-    }
-
-    function removeExistingPlayer() {
-      cells.forEach(cell => {
-        const player = cell.querySelector('.player');
-        if (player) cell.removeChild(player);
-      });
-    }
   </script>
 </body>
 </html>
