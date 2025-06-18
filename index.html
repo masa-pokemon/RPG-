@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>マップエディタ</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+    }
+
+    #tileSelector {
+      margin-top: 10px;
+      margin-bottom: 20px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      border: 1px solid #ccc;
+      padding: 10px;
+    }
+
+    #tileSelector img {
+      width: 40px;
+      height: 40px;
+      cursor: pointer;
+      border: 2px solid transparent;
+    }
+
+    #tileSelector img.selected {
+      border-color: red;
+    }
+
+    #map {
+      display: grid;
+      grid-template-columns: repeat(10, 40px);
+      grid-template-rows: repeat(10, 40px);
+      gap: 1px;
+    }
+
+    .cell {
+      width: 40px;
+      height: 40px;
+      background-color: #eee;
+      border: 1px solid #ccc;
+    }
+  </style>
+</head>
+<body>
+  <h1>マップエディタ</h1>
+
+  <input type="file" id="imageUploader" accept="image/*" multiple>
+  <div id="tileSelector"></div>
+
+  <div id="map"></div>
+
+  <script>
+    const imageUploader = document.getElementById('imageUploader');
+    const tileSelector = document.getElementById('tileSelector');
+    const map = document.getElementById('map');
+
+    let selectedTile = null;
+
+    // マップ初期化（10x10）
+    for (let i = 0; i < 100; i++) {
+      const cell = document.createElement('div');
+      cell.classList.add('cell');
+      cell.addEventListener('click', () => {
+        if (selectedTile) {
+          cell.style.backgroundImage = `url(${selectedTile.src})`;
+          cell.style.backgroundSize = 'cover';
+        }
+      });
+      map.appendChild(cell);
+    }
+
+    // 画像アップロード処理
+    imageUploader.addEventListener('change', (e) => {
+      const files = Array.from(e.target.files);
+
+      files.forEach(file => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const img = document.createElement('img');
+          img.src = reader.result;
+          img.addEventListener('click', () => {
+            // 選択されたタイルのハイライト
+            document.querySelectorAll('#tileSelector img').forEach(i => i.classList.remove('selected'));
+            img.classList.add('selected');
+            selectedTile = img;
+          });
+          tileSelector.appendChild(img);
+        };
+        reader.readAsDataURL(file);
+      });
+    });
+  </script>
+</body>
+</html>
