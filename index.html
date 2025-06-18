@@ -2,16 +2,15 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>マップエディタ</title>
+  <title>RPGツクール</title>
   <style>
     body {
       font-family: sans-serif;
       margin: 20px;
     }
 
-    #tileSelector {
-      margin-top: 10px;
-      margin-bottom: 20px;
+    #tileSelector, #playerSection {
+      margin: 10px 0;
       display: flex;
       gap: 10px;
       flex-wrap: wrap;
@@ -19,14 +18,14 @@
       padding: 10px;
     }
 
-    #tileSelector img {
+    #tileSelector img, #playerPreview img {
       width: 40px;
       height: 40px;
       cursor: pointer;
       border: 2px solid transparent;
     }
 
-    #tileSelector img.selected {
+    #tileSelector img.selected, #playerPreview img.selected {
       border-color: red;
     }
 
@@ -42,57 +41,145 @@
       height: 40px;
       background-color: #eee;
       border: 1px solid #ccc;
+      position: relative;
+    }
+
+    .cell img {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      top: 0;
+      left: 0;
+      pointer-events: none;
+    }
+
+    .blocked {
+      background-color: #333 !important;
+    }
+
+    .player {
+      z-index: 10;
     }
   </style>
 </head>
 <body>
   <h1>マップエディタ</h1>
 
-  <input type="file" id="imageUploader" accept="image/*" multiple>
+  <label>マス画像アップロード：</label>
+  <input type="file" id="imageUploader" accept="image/*" multiple><br>
+
   <div id="tileSelector"></div>
+
+  <label>プレイヤー画像アップロード：</label>
+  <input type="file" id="playerUploader" accept="image/*"><br>
+  <div id="playerPreview"></div>
+
+  <p><strong>使い方：</strong><br>
+    ・左クリック：マスを配置<br>
+    ・右クリック：移動不可マス（ブロック）切替<br>
+    ・プレイヤー画像を選んだ後にセルをクリック：プレイヤー初期位置を設定
+  </p>
 
   <div id="map"></div>
 
   <script>
-    const imageUploader = document.getElementById('imageUploader');
     const tileSelector = document.getElementById('tileSelector');
+    const imageUploader = document.getElementById('imageUploader');
     const map = document.getElementById('map');
+    const playerUploader = document.getElementById('playerUploader');
+    const playerPreview = document.getElementById('playerPreview');
 
     let selectedTile = null;
+    let selectedPlayerImg = null;
+    let playerPosition = null;
 
-    // マップ初期化（10x10）
+    // マップ初期化
+    const cells = [];
     for (let i = 0; i < 100; i++) {
       const cell = document.createElement('div');
       cell.classList.add('cell');
-      cell.addEventListener('click', () => {
-        if (selectedTile) {
+      cell.dataset.index = i;
+
+      cell.addEventListener('click', (e) => {
+        e.preventDefault();
+
+        if (selectedPlayerImg) {
+          // プレイヤー配置
+          removeExistingPlayer();
+          const img = document.createElement('img');
+          img.src = selectedPlayerImg.src;
+          img.classList.add('player');
+          cell.appendChild(img);
+          playerPosition = cell;
+        } else if (selectedTile) {
+          // マスタイル配置
           cell.style.backgroundImage = `url(${selectedTile.src})`;
           cell.style.backgroundSize = 'cover';
         }
       });
+
+      // 右クリックで行動制限切り替え
+      cell.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        cell.classList.toggle('blocked');
+      });
+
       map.appendChild(cell);
+      cells.push(cell);
     }
 
-    // 画像アップロード処理
+    // マス画像アップロード
     imageUploader.addEventListener('change', (e) => {
       const files = Array.from(e.target.files);
-
       files.forEach(file => {
         const reader = new FileReader();
         reader.onload = () => {
           const img = document.createElement('img');
           img.src = reader.result;
           img.addEventListener('click', () => {
-            // 選択されたタイルのハイライト
-            document.querySelectorAll('#tileSelector img').forEach(i => i.classList.remove('selected'));
-            img.classList.add('selected');
             selectedTile = img;
+            selectedPlayerImg = null;
+            clearSelection('#tileSelector img');
+            clearSelection('#playerPreview img');
+            img.classList.add('selected');
           });
           tileSelector.appendChild(img);
         };
         reader.readAsDataURL(file);
       });
     });
+
+    // プレイヤー画像アップロード
+    playerUploader.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = document.createElement('img');
+        img.src = reader.result;
+        img.addEventListener('click', () => {
+          selectedPlayerImg = img;
+          selectedTile = null;
+          clearSelection('#tileSelector img');
+          clearSelection('#playerPreview img');
+          img.classList.add('selected');
+        });
+        playerPreview.innerHTML = '';
+        playerPreview.appendChild(img);
+      };
+      reader.readAsDataURL(file);
+    });
+
+    function clearSelection(selector) {
+      document.querySelectorAll(selector).forEach(img => img.classList.remove('selected'));
+    }
+
+    function removeExistingPlayer() {
+      cells.forEach(cell => {
+        const player = cell.querySelector('.player');
+        if (player) cell.removeChild(player);
+      });
+    }
   </script>
 </body>
 </html>
