@@ -2,203 +2,139 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>マップエディタ（画像分離版）</title>
+  <title>2P オセロ</title>
   <style>
     body {
       font-family: sans-serif;
-      margin: 20px;
+      text-align: center;
     }
-
-    h2 {
-      margin-top: 30px;
-    }
-
-    #tileSelector, #playerSelector {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      padding: 10px;
-      border: 1px solid #ccc;
-      margin: 10px 0;
-    }
-
-    #tileSelector img, #playerSelector img {
-      width: 40px;
-      height: 40px;
-      cursor: pointer;
-      border: 2px solid transparent;
-    }
-
-    img.selected {
-      border-color: red;
-    }
-
-    #map {
+    #board {
       display: grid;
-      gap: 1px;
-      margin-top: 10px;
+      grid-template-columns: repeat(8, 50px);
+      grid-template-rows: repeat(8, 50px);
+      gap: 2px;
+      margin: 20px auto;
+      width: max-content;
     }
-
     .cell {
+      width: 50px;
+      height: 50px;
+      background-color: green;
+      border: 1px solid black;
+      position: relative;
+      cursor: pointer;
+    }
+    .disk {
       width: 40px;
       height: 40px;
-      background-color: #eee;
-      border: 1px solid #ccc;
-      position: relative;
-    }
-
-    .cell img {
+      border-radius: 50%;
       position: absolute;
-      width: 100%;
-      height: 100%;
-      top: 0;
-      left: 0;
-      pointer-events: none;
+      top: 5px;
+      left: 5px;
     }
-
-    .blocked {
-      background-color: #333 !important;
+    .black {
+      background-color: black;
     }
-
-    .player {
-      z-index: 10;
+    .white {
+      background-color: white;
+    }
+    #turn {
+      margin-top: 10px;
+      font-weight: bold;
     }
   </style>
 </head>
 <body>
-  <h1>マップエディタ（プレイヤー・タイル分離）</h1>
 
-  <div>
-    <label>列（横）: <input type="number" id="cols" value="10" min="1"></label>
-    <label>行（縦）: <input type="number" id="rows" value="10" min="1"></label>
-    <button id="generateMap">マップ生成</button>
-  </div>
+<h1>2人用オセロ</h1>
+<div id="turn">黒の番です</div>
+<div id="board"></div>
 
-  <h2>🧱 マップタイルアップロード</h2>
-  <input type="file" id="tileUploader" accept="image/*" multiple>
-  <div id="tileSelector"></div>
+<script>
+  const board = document.getElementById("board");
+  const turnText = document.getElementById("turn");
+  const SIZE = 8;
+  const EMPTY = 0, BLACK = 1, WHITE = 2;
+  let currentPlayer = BLACK;
 
-  <h2>🧍 プレイヤー画像アップロード</h2>
-  <input type="file" id="playerUploader" accept="image/*">
-  <div id="playerSelector"></div>
+  let cells = Array(SIZE).fill().map(() => Array(SIZE).fill(EMPTY));
 
-  <p><strong>使い方：</strong><br>
-    ・マス画像をクリックして選択し、マップ上にクリックで配置。<br>
-    ・プレイヤー画像を選んだ状態でマップをクリック：プレイヤー設置。<br>
-    ・右クリック：移動不可マス（ブロック）切り替え。
-  </p>
+  // 初期配置
+  cells[3][3] = WHITE;
+  cells[3][4] = BLACK;
+  cells[4][3] = BLACK;
+  cells[4][4] = WHITE;
 
-  <div id="map"></div>
+  const directions = [
+    [-1, -1], [-1, 0], [-1, 1],
+    [0, -1],          [0, 1],
+    [1, -1], [1, 0], [1, 1],
+  ];
 
-  <script>
-    const map = document.getElementById('map');
-    const tileUploader = document.getElementById('tileUploader');
-    const tileSelector = document.getElementById('tileSelector');
-    const playerUploader = document.getElementById('playerUploader');
-    const playerSelector = document.getElementById('playerSelector');
-    const generateMapBtn = document.getElementById('generateMap');
-
-    let selectedTile = null;
-    let selectedPlayerImg = null;
-    let playerPosition = null;
-    let cells = [];
-
-    function clearSelection(container) {
-      container.querySelectorAll('img').forEach(img => img.classList.remove('selected'));
+  function render() {
+    board.innerHTML = "";
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 0; x < SIZE; x++) {
+        const cell = document.createElement("div");
+        cell.className = "cell";
+        if (cells[y][x] === BLACK || cells[y][x] === WHITE) {
+          const disk = document.createElement("div");
+          disk.className = "disk " + (cells[y][x] === BLACK ? "black" : "white");
+          cell.appendChild(disk);
+        }
+        cell.addEventListener("click", () => handleClick(x, y));
+        board.appendChild(cell);
+      }
     }
+  }
 
-    function removeExistingPlayer() {
-      cells.forEach(cell => {
-        const player = cell.querySelector('.player');
-        if (player) cell.removeChild(player);
-      });
+  function isValidMove(x, y, player) {
+    if (cells[y][x] !== EMPTY) return false;
+    const opponent = player === BLACK ? WHITE : BLACK;
+    for (const [dx, dy] of directions) {
+      let nx = x + dx, ny = y + dy;
+      let hasOpponentBetween = false;
+      while (nx >= 0 && nx < SIZE && ny >= 0 && ny < SIZE && cells[ny][nx] === opponent) {
+        nx += dx;
+        ny += dy;
+        hasOpponentBetween = true;
+      }
+      if (hasOpponentBetween && nx >= 0 && nx < SIZE && ny >= 0 && ny < SIZE && cells[ny][nx] === player) {
+        return true;
+      }
     }
+    return false;
+  }
 
-    function createMap(cols, rows) {
-      map.innerHTML = '';
-      map.style.gridTemplateColumns = `repeat(${cols}, 40px)`;
-      map.style.gridTemplateRows = `repeat(${rows}, 40px)`;
+  function handleClick(x, y) {
+    if (!isValidMove(x, y, currentPlayer)) return;
 
-      cells = [];
-      for (let i = 0; i < cols * rows; i++) {
-        const cell = document.createElement('div');
-        cell.classList.add('cell');
-        cell.dataset.index = i;
+    cells[y][x] = currentPlayer;
+    const opponent = currentPlayer === BLACK ? WHITE : BLACK;
 
-        cell.addEventListener('click', (e) => {
-          e.preventDefault();
-          if (selectedPlayerImg) {
-            removeExistingPlayer();
-            const img = document.createElement('img');
-            img.src = selectedPlayerImg.src;
-            img.classList.add('player');
-            cell.appendChild(img);
-            playerPosition = cell;
-          } else if (selectedTile) {
-            cell.style.backgroundImage = `url(${selectedTile.src})`;
-            cell.style.backgroundSize = 'cover';
-          }
+    for (const [dx, dy] of directions) {
+      let nx = x + dx, ny = y + dy;
+      const toFlip = [];
+      while (nx >= 0 && nx < SIZE && ny >= 0 && ny < SIZE && cells[ny][nx] === opponent) {
+        toFlip.push([nx, ny]);
+        nx += dx;
+        ny += dy;
+      }
+      if (toFlip.length > 0 && nx >= 0 && nx < SIZE && ny >= 0 && ny < SIZE && cells[ny][nx] === currentPlayer) {
+        toFlip.forEach(([fx, fy]) => {
+          cells[fy][fx] = currentPlayer;
         });
-
-        cell.addEventListener('contextmenu', (e) => {
-          e.preventDefault();
-          cell.classList.toggle('blocked');
-        });
-
-        map.appendChild(cell);
-        cells.push(cell);
       }
     }
 
-    generateMapBtn.addEventListener('click', () => {
-      const cols = parseInt(document.getElementById('cols').value);
-      const rows = parseInt(document.getElementById('rows').value);
-      if (cols > 0 && rows > 0) {
-        createMap(cols, rows);
-      }
-    });
+    currentPlayer = currentPlayer === BLACK ? WHITE : BLACK;
+    turnText.textContent = currentPlayer === BLACK ? "黒の番です" : "白の番です";
 
-    // 初期マップ生成
-    createMap(10, 10);
+    render();
+  }
 
-    tileUploader.addEventListener('change', (e) => {
-      Array.from(e.target.files).forEach(file => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const img = document.createElement('img');
-          img.src = reader.result;
-          img.addEventListener('click', () => {
-            selectedTile = img;
-            selectedPlayerImg = null;
-            clearSelection(tileSelector);
-            clearSelection(playerSelector);
-            img.classList.add('selected');
-          });
-          tileSelector.appendChild(img);
-        };
-        reader.readAsDataURL(file);
-      });
-    });
+  render();
+</script>
 
-    playerUploader.addEventListener('change', (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        const img = document.createElement('img');
-        img.src = reader.result;
-        img.addEventListener('click', () => {
-          selectedPlayerImg = img;
-          selectedTile = null;
-          clearSelection(tileSelector);
-          clearSelection(playerSelector);
-          img.classList.add('selected');
-        });
-        playerSelector.innerHTML = '';
-        playerSelector.appendChild(img);
-      };
-      reader.readAsDataURL(file);
-    });
-  </script>
 </body>
 </html>
